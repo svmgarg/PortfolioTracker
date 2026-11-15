@@ -12,12 +12,10 @@ import { Pagination } from './components/Pagination';
 import { SettingsModal } from './components/SettingsModal';
 import { SourcesBar } from './components/SourcesBar';
 import { SummaryCards } from './components/SummaryCards';
+import { type StagedUploadItem, UploadDrawer } from './components/UploadDrawer';
 import { UploadDropzone } from './components/UploadDropzone';
 import { ValidationBanner } from './components/ValidationBanner';
-import {
-  parseFileWithRegistry,
-  type PreferredBrokerOption,
-} from './parsers/parserRegistry';
+import { parseFileWithRegistry } from './parsers/parserRegistry';
 import type {
   ActiveSortField,
   ClosedSortField,
@@ -97,11 +95,12 @@ function loadSavedSettings(): TaxSettings {
 
 export default function App() {
   const [sources, setSources] = useState<LoadedSource[]>([]);
-  const [preferredBroker, setPreferredBroker] = useState<PreferredBrokerOption>('auto');
   const [mappingQueue, setMappingQueue] = useState<PendingMappingRequest[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [settings, setSettings] = useState<TaxSettings>(loadSavedSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAddSourceOpen, setIsAddSourceOpen] = useState(false);
+  const [drawerSeedFiles, setDrawerSeedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
@@ -113,48 +112,110 @@ export default function App() {
     INITIAL_CLOSED_FILTER
   );
 
-  const handleFilesSelected = async (fileList: FileList | File[]) => {
-    const files = Array.from(fileList);
-    if (files.length === 0) return;
+  const applyUniqueLabel = (
+    baseLabel: string,
+    usedLabels: Set<string>
+  ): string => {
+    const clean = baseLabel.trim() || 'Source';
+    if (!usedLabels.has(clean.toLowerCase())) {
+      usedLabels.add(clean.toLowerCase());
+      return clean;
+    }
+    let counter = 2;
+    while (usedLabels.has(`${clean} (${counter})`.toLowerCase())) {
+      counter++;
+    }
+    const unique = `${clean} (${counter})`;
+    usedLabels.add(unique.toLowerCase());
+    return unique;
+  };
+
+  const formatSourceLabel = (brokerName: string, ownerInput: string): string => {
+    const owner = ownerInput.trim();
+    if (!owner) return brokerName;
+    if (owner.toLowerCase().includes(brokerName.toLowerCase())) {
+      return owner;
+    }
+    return `${brokerName} — ${owner}`;
+  };
+
+  const retagSourceLabel = (src: LoadedSource, nextLabel: string): LoadedSource => ({
+    ...src,
+    brokerLabel: nextLabel,
+    activeLots: src.activeLots.map((lot) => ({ ...lot, brokerLabel: nextLabel })),
+    closedTrades: src.closedTrades.map((trade) => ({ ...trade, brokerLabel: nextLabel })),
+  });
+
+  const processUploadItems = async (items: StagedUploadItem[]) => {
+    if (items.length === 0) return;
 
     setIsProcessing(true);
     setUploadError(null);
     setDuplicateNotice(null);
 
     const seenHashes = new Set<string>();
+    const usedLabels = new Set<string>();
     for (const src of sources) {
       if (src.contentHash) seenHashes.add(src.contentHash);
+      usedLabels.add(src.brokerLabel.toLowerCase());
     }
     for (const req of mappingQueue) {
       if (req.contentHash) seenHashes.add(req.contentHash);
     }
 
+    const rowResolvedLabel = new Map<string, string>();
     const parsedSources: LoadedSource[] = [];
     const pendingMappings: PendingMappingRequest[] = [];
     const duplicateNames: string[] = [];
     const errors: string[] = [];
 
-    for (const file of files) {
+    for (const item of items) {
       try {
-        const outcome = await parseFileWithRegistry(file, preferredBroker, seenHashes);
+        const outcome = await parseFileWithRegistry(
+          item.file,
+          item.preferredBroker,
+          seenHashes
+        );
         if (outcome.status === 'duplicate') {
           duplicateNames.push(outcome.fileName);
         } else if (outcome.status === 'parsed') {
           if (outcome.source.contentHash) seenHashes.add(outcome.source.contentHash);
-          parsedSources.push(outcome.source);
+          let resolvedLabel = rowResolvedLabel.get(item.batchRowId);
+          if (!resolvedLabel) {
+            const desiredLabel = formatSourceLabel(
+              outcome.source.brokerLabel,
+              item.accountLabel
+            );
+            resolvedLabel = item.accountLabel.trim()
+              ? desiredLabel
+              : applyUniqueLabel(desiredLabel, usedLabels);
+            rowResolvedLabel.set(item.batchRowId, resolvedLabel);
+          }
+          parsedSources.push(retagSourceLabel(outcome.source, resolvedLabel));
         } else {
           if (outcome.contentHash) seenHashes.add(outcome.contentHash);
+          let resolvedLabel = rowResolvedLabel.get(item.batchRowId);
+          if (!resolvedLabel) {
+            const desiredLabel = formatSourceLabel(
+              outcome.suggestedBrokerLabel,
+              item.accountLabel
+            );
+            resolvedLabel = item.accountLabel.trim()
+              ? desiredLabel
+              : applyUniqueLabel(desiredLabel, usedLabels);
+            rowResolvedLabel.set(item.batchRowId, resolvedLabel);
+          }
           pendingMappings.push({
             fileName: outcome.fileName,
             contentHash: outcome.contentHash,
             workbook: outcome.workbook,
-            suggestedBrokerLabel: outcome.suggestedBrokerLabel,
+            suggestedBrokerLabel: resolvedLabel,
             reason: outcome.reason,
           });
         }
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : `Failed to process "${file.name}".`;
+          err instanceof Error ? err.message : `Failed to process "${item.file.name}".`;
         errors.push(msg);
       }
     }
@@ -182,6 +243,18 @@ export default function App() {
     }
 
     setIsProcessing(false);
+    setIsAddSourceOpen(false);
+    setDrawerSeedFiles([]);
+  };
+
+  const openUploadDrawer = (files?: FileList | File[]) => {
+    setDrawerSeedFiles(files ? Array.from(files) : []);
+    setIsAddSourceOpen(true);
+  };
+
+  const closeUploadDrawer = () => {
+    setIsAddSourceOpen(false);
+    setDrawerSeedFiles([]);
   };
 
   const handleMappedImport = (mappedSource: LoadedSource) => {
@@ -197,20 +270,47 @@ export default function App() {
     setMappingQueue((prev) => prev.slice(1));
   };
 
+  const handleRenameSource = (sourceId: string, newLabel: string) => {
+    const trimmed = newLabel.trim();
+    if (!trimmed) return;
+    const targetOldLabel = sources.find((s) => s.sourceId === sourceId)?.brokerLabel;
+    setSources((prev) =>
+      prev.map((src) => (src.sourceId === sourceId ? retagSourceLabel(src, trimmed) : src))
+    );
+    if (targetOldLabel) {
+      setActiveFilter((prev) => ({
+        ...prev,
+        selectedSource: prev.selectedSource === targetOldLabel ? trimmed : prev.selectedSource,
+      }));
+      setClosedFilter((prev) => ({
+        ...prev,
+        selectedSource: prev.selectedSource === targetOldLabel ? trimmed : prev.selectedSource,
+      }));
+    }
+  };
+
   const handleSkipMapping = () => {
     setMappingQueue((prev) => prev.slice(1));
   };
 
   const handleRemoveSource = (sourceId: string) => {
-    setSources((prev) => prev.filter((s) => s.sourceId !== sourceId));
+    const remaining = sources.filter((s) => s.sourceId !== sourceId);
+    const remainingLabels = new Set(remaining.map((s) => s.brokerLabel));
+    setSources(remaining);
     setActiveFilter((prev) => ({
       ...prev,
-      selectedSource: prev.selectedSource === sourceId ? 'ALL' : prev.selectedSource,
+      selectedSource:
+        prev.selectedSource !== 'ALL' && !remainingLabels.has(prev.selectedSource)
+          ? 'ALL'
+          : prev.selectedSource,
       page: 1,
     }));
     setClosedFilter((prev) => ({
       ...prev,
-      selectedSource: prev.selectedSource === sourceId ? 'ALL' : prev.selectedSource,
+      selectedSource:
+        prev.selectedSource !== 'ALL' && !remainingLabels.has(prev.selectedSource)
+          ? 'ALL'
+          : prev.selectedSource,
       page: 1,
     }));
   };
@@ -233,7 +333,10 @@ export default function App() {
   };
 
   const combinedWarnings = useMemo(
-    () => sources.flatMap((s) => s.warnings),
+    () =>
+      sources.flatMap((s) =>
+        s.warnings.map((w) => (sources.length > 1 ? `[${s.brokerLabel}] ${w}` : w))
+      ),
     [sources]
   );
 
@@ -306,22 +409,35 @@ export default function App() {
     }));
   };
 
+  const existingHashes = useMemo(
+    () =>
+      sources
+        .map((s) => s.contentHash)
+        .filter((h): h is string => typeof h === 'string' && h.length > 0),
+    [sources]
+  );
+
+  const existingLabels = useMemo(
+    () => Array.from(new Set(sources.map((s) => s.brokerLabel))).sort((a, b) => a.localeCompare(b)),
+    [sources]
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Header
         hasSources={sources.length > 0}
         holdingPeriodMonths={settings.holdingPeriodMonths}
-        onFilesSelected={handleFilesSelected}
+        onOpenAddSource={() => openUploadDrawer()}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <main className="flex-1 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {sources.length === 0 ? (
           <UploadDropzone
-            preferredBroker={preferredBroker}
-            onPreferredBrokerChange={setPreferredBroker}
-            onFilesSelected={handleFilesSelected}
+            onOpenDrawer={() => openUploadDrawer()}
+            onDropFiles={(files) => openUploadDrawer(files)}
             errorMessage={uploadError}
+            duplicateNotice={duplicateNotice}
             isProcessing={isProcessing}
           />
         ) : (
@@ -366,9 +482,10 @@ export default function App() {
 
             <SourcesBar
               sources={sources}
+              onRenameSource={handleRenameSource}
               onRemoveSource={handleRemoveSource}
               onClearAll={handleClearAllSources}
-              onAddFiles={handleFilesSelected}
+              onOpenAddSource={() => openUploadDrawer()}
             />
 
             <ValidationBanner warnings={combinedWarnings} />
@@ -529,6 +646,17 @@ export default function App() {
         settings={settings}
         onSave={handleSaveSettings}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <UploadDrawer
+        isOpen={isAddSourceOpen}
+        hasExistingSources={sources.length > 0}
+        initialFiles={drawerSeedFiles}
+        existingHashes={existingHashes}
+        existingLabels={existingLabels}
+        isProcessing={isProcessing}
+        onSubmitBatch={processUploadItems}
+        onClose={closeUploadDrawer}
       />
 
       <GenericMapperModal

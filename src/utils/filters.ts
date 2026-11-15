@@ -25,7 +25,7 @@ export function filterActiveLots(
   const query = filter.searchQuery.trim().toLowerCase();
 
   return lots.filter((lot) => {
-    if (filter.selectedSource !== 'ALL' && lot.sourceId !== filter.selectedSource) {
+    if (filter.selectedSource !== 'ALL' && lot.brokerLabel !== filter.selectedSource) {
       return false;
     }
     if (filter.selectedScript !== 'ALL' && lot.script !== filter.selectedScript) {
@@ -102,7 +102,7 @@ export function filterClosedTrades(
   const query = filter.searchQuery.trim().toLowerCase();
 
   return trades.filter((trade) => {
-    if (filter.selectedSource !== 'ALL' && trade.sourceId !== filter.selectedSource) {
+    if (filter.selectedSource !== 'ALL' && trade.brokerLabel !== filter.selectedSource) {
       return false;
     }
     if (filter.selectedScript !== 'ALL' && trade.script !== filter.selectedScript) {

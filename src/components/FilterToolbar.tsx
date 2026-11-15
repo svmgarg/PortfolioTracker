@@ -29,6 +29,10 @@ export const FilterToolbar: React.FC<FilterToolbarProps> = ({
   onSearchChange,
   onResetFilters,
 }) => {
+  const uniqueSourceLabels = Array.from(
+    new Set(sources.map((src) => src.brokerLabel))
+  ).sort((a, b) => a.localeCompare(b));
+
   const hasActiveFilters =
     selectedSource !== 'ALL' ||
     selectedScript !== 'ALL' ||
@@ -52,10 +56,10 @@ export const FilterToolbar: React.FC<FilterToolbarProps> = ({
             onChange={(e) => onSourceChange(e.target.value)}
             className="w-full h-10 px-3 text-sm bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
           >
-            <option value="ALL">All Sources ({sources.length})</option>
-            {sources.map((src) => (
-              <option key={src.sourceId} value={src.sourceId}>
-                {src.brokerLabel}
+            <option value="ALL">All Sources ({uniqueSourceLabels.length})</option>
+            {uniqueSourceLabels.map((label) => (
+              <option key={label} value={label}>
+                {label}
               </option>
             ))}
           </select>

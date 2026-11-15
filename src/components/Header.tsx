@@ -1,28 +1,19 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { BarChart3, Plus, SlidersHorizontal } from 'lucide-react';
 
 interface HeaderProps {
   hasSources: boolean;
   holdingPeriodMonths: number;
-  onFilesSelected: (files: FileList | File[]) => void;
+  onOpenAddSource: () => void;
   onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   hasSources,
   holdingPeriodMonths,
-  onFilesSelected,
+  onOpenAddSource,
   onOpenSettings,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      onFilesSelected(e.target.files);
-    }
-    e.target.value = '';
-  };
-
   return (
     <header className="bg-[#0F2544] text-white border-b border-slate-800">
       <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4">
@@ -53,25 +44,14 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {hasSources && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                multiple
-                onChange={handleInputChange}
-                className="hidden"
-                aria-label="Add broker report files"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
-              >
-                <Plus className="w-4 h-4" aria-hidden="true" />
-                <span>Add Source</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={onOpenAddSource}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+            >
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              <span>Add Source</span>
+            </button>
           )}
         </div>
       </div>
