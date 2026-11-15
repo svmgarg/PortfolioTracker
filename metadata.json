@@ -1,0 +1,6 @@
+{
+  "name": "Portfolio Tax Tracker",
+  "description": "Local-first Groww Stocks P&L analyzer for lot-level holding period classification, LT/ST analysis, and tax-ready exports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
