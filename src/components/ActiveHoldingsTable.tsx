@@ -18,7 +18,7 @@ interface ActiveHoldingsTableProps {
   rows: ActiveLotComputed[];
   totalLotsCount: number;
   filteredCount: number;
-  valuationDate: CalendarDate;
+  valuationDates: CalendarDate[];
   sortField: ActiveSortField;
   sortDirection: SortDirection;
   onSort: (field: ActiveSortField) => void;
@@ -77,12 +77,22 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
   rows,
   totalLotsCount,
   filteredCount,
-  valuationDate,
+  valuationDates,
   sortField,
   sortDirection,
   onSort,
   onResetFilters,
 }) => {
+  const uniqueDateLabels = Array.from(
+    new Set(valuationDates.map((d) => formatCalendarDateReadable(d)))
+  );
+  const valuationLabel =
+    uniqueDateLabels.length === 0
+      ? '—'
+      : uniqueDateLabels.length === 1
+      ? uniqueDateLabels[0]
+      : uniqueDateLabels.join(' / ');
+
   return (
     <div>
       <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white">
@@ -98,19 +108,24 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
         </div>
         <p className="text-xs sm:text-sm text-slate-500 tabular-nums">
           Valuation Date:{' '}
-          <span className="font-medium text-slate-700">
-            {formatCalendarDateReadable(valuationDate)}
-          </span>
+          <span className="font-medium text-slate-700">{valuationLabel}</span>
         </p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left min-w-[920px]">
+        <table className="w-full border-collapse text-left min-w-[1000px]">
           <thead className="bg-blue-50 border-b border-blue-200">
             <tr>
               <SortHeader
                 label="Script"
                 field="script"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortHeader
+                label="Source"
+                field="source"
                 activeField={sortField}
                 direction={sortDirection}
                 onSort={onSort}
@@ -146,12 +161,14 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
                 align="right"
                 onSort={onSort}
               />
-              <th
-                scope="col"
-                className="px-4 py-3 text-xs font-semibold text-blue-950 text-center whitespace-nowrap"
-              >
-                Classification
-              </th>
+              <SortHeader
+                label="Classification"
+                field="classification"
+                activeField={sortField}
+                direction={sortDirection}
+                align="center"
+                onSort={onSort}
+              />
               <SortHeader
                 label="Current Value (₹)"
                 field="currentValue"
@@ -181,17 +198,21 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
           <tbody className="divide-y divide-slate-200 bg-white text-sm">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-12 text-center">
+                <td colSpan={10} className="px-6 py-12 text-center">
                   <p className="text-sm font-medium text-slate-700">
-                    No active purchase lots match the current filters.
+                    {totalLotsCount === 0
+                      ? 'No active holdings were present in the loaded sources.'
+                      : 'No active purchase lots match the current filters.'}
                   </p>
-                  <button
-                    type="button"
-                    onClick={onResetFilters}
-                    className="mt-3 inline-flex items-center px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    Reset Filters
-                  </button>
+                  {totalLotsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={onResetFilters}
+                      className="mt-3 inline-flex items-center px-3.5 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -199,15 +220,15 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
                 const isPositive = lot.unrealisedPnL >= 0;
                 const pnlSign = lot.unrealisedPnL > 0 ? '+' : '';
                 return (
-                  <tr
-                    key={lot.id}
-                    className="hover:bg-slate-50/90 transition-colors"
-                  >
+                  <tr key={lot.id} className="hover:bg-slate-50/90 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">
                       <div>{lot.script}</div>
                       {lot.remark && (
                         <div className="text-xs text-slate-500 mt-0.5">{lot.remark}</div>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {lot.brokerLabel}
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs sm:text-sm tabular-nums whitespace-nowrap">
                       {formatCalendarDate(lot.buyDate)}
@@ -223,13 +244,13 @@ export const ActiveHoldingsTable: React.FC<ActiveHoldingsTableProps> = ({
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center justify-center min-w-[38px] px-2.5 py-0.5 rounded-md text-xs font-bold border ${
+                        className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-xs font-bold border whitespace-nowrap ${
                           lot.classification === 'LT'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
-                        {lot.classification}
+                        {lot.classification === 'LT' ? 'Long Term' : 'Short Term'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-slate-900 font-medium font-mono tabular-nums whitespace-nowrap">

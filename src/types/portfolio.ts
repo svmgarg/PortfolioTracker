@@ -8,8 +8,13 @@ export type Classification = 'LT' | 'ST';
 
 export type InstrumentCategory = 'equity_etf' | 'debt_other';
 
+export type BrokerSourceType = 'groww' | 'zerodha' | 'indmoney' | 'custom';
+
 export interface ActiveLotRaw {
   id: string;
+  sourceId: string;
+  brokerLabel: string;
+  sourceValuationDate: CalendarDate;
   rowNumber: number;
   script: string;
   isin: string;
@@ -26,6 +31,8 @@ export interface ActiveLotRaw {
 
 export interface ClosedTradeRaw {
   id: string;
+  sourceId: string;
+  brokerLabel: string;
   rowNumber: number;
   script: string;
   isin: string;
@@ -69,7 +76,10 @@ export interface ScripValidationSummary {
   scripCount: number;
 }
 
-export interface ParsedWorkbookResult {
+export interface LoadedSource {
+  sourceId: string;
+  brokerType: BrokerSourceType;
+  brokerLabel: string;
   valuationDate: CalendarDate;
   reportSummary: ReportSummary;
   scripValidation: ScripValidationSummary;
@@ -88,28 +98,33 @@ export type ClassificationFilter = 'ALL' | Classification;
 
 export type ActiveSortField =
   | 'script'
+  | 'source'
   | 'buyDate'
   | 'quantity'
   | 'buyPrice'
   | 'holdingDays'
+  | 'classification'
   | 'currentValue'
   | 'pnl'
   | 'pnlPercent';
 
 export type ClosedSortField =
   | 'script'
+  | 'source'
   | 'buyDate'
   | 'sellDate'
   | 'quantity'
   | 'buyPrice'
   | 'sellPrice'
   | 'holdingDays'
+  | 'classification'
   | 'pnl'
   | 'pnlPercent';
 
 export type SortDirection = 'asc' | 'desc';
 
 export interface TabFilterState<TSort extends string> {
+  selectedSource: string; // 'ALL' or sourceId
   selectedScript: string; // 'ALL' or exact script name
   classification: ClassificationFilter;
   searchQuery: string;

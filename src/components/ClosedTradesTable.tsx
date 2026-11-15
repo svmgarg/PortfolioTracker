@@ -98,12 +98,19 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left min-w-[1040px]">
+        <table className="w-full border-collapse text-left min-w-[1120px]">
           <thead className="bg-blue-50 border-b border-blue-200">
             <tr>
               <SortHeader
                 label="Script"
                 field="script"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortHeader
+                label="Source"
+                field="source"
                 activeField={sortField}
                 direction={sortDirection}
                 onSort={onSort}
@@ -154,12 +161,14 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
                 align="right"
                 onSort={onSort}
               />
-              <th
-                scope="col"
-                className="px-4 py-3 text-xs font-semibold text-blue-950 text-center whitespace-nowrap"
-              >
-                Classification
-              </th>
+              <SortHeader
+                label="Classification"
+                field="classification"
+                activeField={sortField}
+                direction={sortDirection}
+                align="center"
+                onSort={onSort}
+              />
               <SortHeader
                 label="Realised P&L (₹)"
                 field="pnl"
@@ -181,10 +190,10 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
           <tbody className="divide-y divide-slate-200 bg-white text-sm">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-6 py-12 text-center">
+                <td colSpan={11} className="px-6 py-12 text-center">
                   <p className="text-sm font-medium text-slate-700">
                     {totalTradesCount === 0
-                      ? 'No realised trades were present in this report.'
+                      ? 'No realised trades were present in the loaded sources.'
                       : 'No closed trades match the current filters.'}
                   </p>
                   {totalTradesCount > 0 && (
@@ -203,10 +212,7 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
                 const isPositive = trade.realisedPnL >= 0;
                 const pnlSign = trade.realisedPnL > 0 ? '+' : '';
                 return (
-                  <tr
-                    key={trade.id}
-                    className="hover:bg-slate-50/90 transition-colors"
-                  >
+                  <tr key={trade.id} className="hover:bg-slate-50/90 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>{trade.script}</span>
@@ -216,12 +222,12 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
                           </span>
                         )}
                       </div>
-                      {trade.remark && !trade.isIntraday && (
+                      {trade.remark && (
                         <div className="text-xs text-slate-500 mt-0.5">{trade.remark}</div>
                       )}
-                      {trade.remark && trade.isIntraday && (
-                        <div className="text-xs text-slate-500 mt-0.5">{trade.remark}</div>
-                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {trade.brokerLabel}
                     </td>
                     <td className="px-4 py-3 text-slate-700 font-mono text-xs sm:text-sm tabular-nums whitespace-nowrap">
                       {formatCalendarDate(trade.buyDate)}
@@ -243,13 +249,13 @@ export const ClosedTradesTable: React.FC<ClosedTradesTableProps> = ({
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center justify-center min-w-[38px] px-2.5 py-0.5 rounded-md text-xs font-bold border ${
+                        className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded-md text-xs font-bold border whitespace-nowrap ${
                           trade.classification === 'LT'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
-                        {trade.classification}
+                        {trade.classification === 'LT' ? 'Long Term' : 'Short Term'}
                       </span>
                     </td>
                     <td

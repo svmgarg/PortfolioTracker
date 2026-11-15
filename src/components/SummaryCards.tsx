@@ -68,8 +68,8 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold text-slate-500">Long-Term Lots</p>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            LT
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+            Long Term
           </span>
         </div>
         <p className="mt-2 text-2xl font-bold text-emerald-700 font-mono tabular-nums tracking-tight">
@@ -83,8 +83,8 @@ export const SummaryCards: React.FC<SummaryCardsProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-semibold text-slate-500">Short-Term Lots</p>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            ST
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+            Short Term
           </span>
         </div>
         <p className="mt-2 text-2xl font-bold text-amber-700 font-mono tabular-nums tracking-tight">

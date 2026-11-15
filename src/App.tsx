@@ -3,26 +3,29 @@ import { AlertCircle } from 'lucide-react';
 import { ActiveHoldingsTable } from './components/ActiveHoldingsTable';
 import { ClosedTradesTable } from './components/ClosedTradesTable';
 import { FilterToolbar } from './components/FilterToolbar';
+import {
+  GenericMapperModal,
+  type PendingMappingRequest,
+} from './components/GenericMapperModal';
 import { Header } from './components/Header';
 import { Pagination } from './components/Pagination';
 import { SettingsModal } from './components/SettingsModal';
+import { SourcesBar } from './components/SourcesBar';
 import { SummaryCards } from './components/SummaryCards';
 import { UploadDropzone } from './components/UploadDropzone';
 import { ValidationBanner } from './components/ValidationBanner';
+import {
+  parseFileWithRegistry,
+  type PreferredBrokerOption,
+} from './parsers/parserRegistry';
 import type {
   ActiveSortField,
   ClosedSortField,
-  ParsedWorkbookResult,
+  LoadedSource,
   TabFilterState,
   TaxSettings,
 } from './types/portfolio';
-import {
-  computeActiveLot,
-  computeClosedTrade,
-  formatCalendarDate,
-} from './utils/calculations';
-import { parseGrowwWorkbook } from './utils/excelParser';
-import { exportActiveHoldings, exportClosedTrades } from './utils/export';
+import { computeActiveLot, computeClosedTrade } from './utils/calculations';
 import {
   filterActiveLots,
   filterClosedTrades,
@@ -44,6 +47,7 @@ const DEFAULT_SETTINGS: TaxSettings = {
 };
 
 const INITIAL_ACTIVE_FILTER: TabFilterState<ActiveSortField> = {
+  selectedSource: 'ALL',
   selectedScript: 'ALL',
   classification: 'ALL',
   searchQuery: '',
@@ -54,6 +58,7 @@ const INITIAL_ACTIVE_FILTER: TabFilterState<ActiveSortField> = {
 };
 
 const INITIAL_CLOSED_FILTER: TabFilterState<ClosedSortField> = {
+  selectedSource: 'ALL',
   selectedScript: 'ALL',
   classification: 'ALL',
   searchQuery: '',
@@ -91,7 +96,9 @@ function loadSavedSettings(): TaxSettings {
 }
 
 export default function App() {
-  const [workbook, setWorkbook] = useState<ParsedWorkbookResult | null>(null);
+  const [sources, setSources] = useState<LoadedSource[]>([]);
+  const [preferredBroker, setPreferredBroker] = useState<PreferredBrokerOption>('auto');
+  const [mappingQueue, setMappingQueue] = useState<PendingMappingRequest[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>('active');
   const [settings, setSettings] = useState<TaxSettings>(loadSavedSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -105,32 +112,82 @@ export default function App() {
     INITIAL_CLOSED_FILTER
   );
 
-  const handleFileSelected = async (file: File) => {
-    const lowerName = file.name.toLowerCase();
-    if (!lowerName.endsWith('.xlsx')) {
-      setUploadError('Unsupported file format. Please upload a Groww P&L Excel (.xlsx) file.');
-      return;
-    }
+  const handleFilesSelected = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
 
     setIsProcessing(true);
     setUploadError(null);
 
-    try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseGrowwWorkbook(buffer);
-      setWorkbook(parsed);
-      setActiveFilter(INITIAL_ACTIVE_FILTER);
-      setClosedFilter(INITIAL_CLOSED_FILTER);
-      setActiveTab('active');
-    } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Failed to read the Excel workbook. Verify it is a valid Groww Stocks P&L report.';
-      setUploadError(msg);
-    } finally {
-      setIsProcessing(false);
+    const parsedSources: LoadedSource[] = [];
+    const pendingMappings: PendingMappingRequest[] = [];
+    const errors: string[] = [];
+
+    for (const file of files) {
+      try {
+        const outcome = await parseFileWithRegistry(file, preferredBroker);
+        if (outcome.status === 'parsed') {
+          parsedSources.push(outcome.source);
+        } else {
+          pendingMappings.push({
+            fileName: outcome.fileName,
+            workbook: outcome.workbook,
+            suggestedBrokerLabel: outcome.suggestedBrokerLabel,
+            reason: outcome.reason,
+          });
+        }
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : `Failed to process "${file.name}".`;
+        errors.push(msg);
+      }
     }
+
+    if (parsedSources.length > 0) {
+      setSources((prev) => [...prev, ...parsedSources]);
+      setActiveFilter((prev) => ({ ...prev, page: 1 }));
+      setClosedFilter((prev) => ({ ...prev, page: 1 }));
+    }
+
+    if (pendingMappings.length > 0) {
+      setMappingQueue((prev) => [...prev, ...pendingMappings]);
+    }
+
+    if (errors.length > 0) {
+      setUploadError(errors.join(' '));
+    }
+
+    setIsProcessing(false);
+  };
+
+  const handleMappedImport = (mappedSource: LoadedSource) => {
+    setSources((prev) => [...prev, mappedSource]);
+    setMappingQueue((prev) => prev.slice(1));
+  };
+
+  const handleSkipMapping = () => {
+    setMappingQueue((prev) => prev.slice(1));
+  };
+
+  const handleRemoveSource = (sourceId: string) => {
+    setSources((prev) => prev.filter((s) => s.sourceId !== sourceId));
+    setActiveFilter((prev) => ({
+      ...prev,
+      selectedSource: prev.selectedSource === sourceId ? 'ALL' : prev.selectedSource,
+      page: 1,
+    }));
+    setClosedFilter((prev) => ({
+      ...prev,
+      selectedSource: prev.selectedSource === sourceId ? 'ALL' : prev.selectedSource,
+      page: 1,
+    }));
+  };
+
+  const handleClearAllSources = () => {
+    setSources([]);
+    setActiveFilter(INITIAL_ACTIVE_FILTER);
+    setClosedFilter(INITIAL_CLOSED_FILTER);
+    setUploadError(null);
   };
 
   const handleSaveSettings = (updated: TaxSettings) => {
@@ -142,27 +199,34 @@ export default function App() {
     }
   };
 
-  // Compute lot-level holding days, classifications, and P&L %
+  const combinedWarnings = useMemo(
+    () => sources.flatMap((s) => s.warnings),
+    [sources]
+  );
+
+  const valuationDates = useMemo(
+    () => sources.map((s) => s.valuationDate),
+    [sources]
+  );
+
   const computedActiveLots = useMemo(() => {
-    if (!workbook) return [];
-    return workbook.activeLots.map((lot) =>
-      computeActiveLot(lot, workbook.valuationDate, settings)
+    return sources.flatMap((src) =>
+      src.activeLots.map((lot) => computeActiveLot(lot, src.valuationDate, settings))
     );
-  }, [workbook, settings]);
+  }, [sources, settings]);
 
   const computedClosedTrades = useMemo(() => {
-    if (!workbook) return [];
-    return workbook.closedTrades.map((trade) => computeClosedTrade(trade, settings));
-  }, [workbook, settings]);
+    return sources.flatMap((src) =>
+      src.closedTrades.map((trade) => computeClosedTrade(trade, settings))
+    );
+  }, [sources, settings]);
 
-  // Unique scripts per tab (for dropdown only; never deduplicates table rows)
   const activeScripts = useMemo(() => getUniqueScripts(computedActiveLots), [computedActiveLots]);
   const closedScripts = useMemo(
     () => getUniqueScripts(computedClosedTrades),
     [computedClosedTrades]
   );
 
-  // Filtered & sorted datasets
   const filteredActiveLots = useMemo(() => {
     const filtered = filterActiveLots(computedActiveLots, activeFilter);
     return sortActiveLots(filtered, activeFilter.sortField, activeFilter.sortDirection);
@@ -173,7 +237,6 @@ export default function App() {
     return sortClosedTrades(filtered, closedFilter.sortField, closedFilter.sortDirection);
   }, [computedClosedTrades, closedFilter]);
 
-  // Pagination slices
   const pagedActive = useMemo(
     () => paginateItems(filteredActiveLots, activeFilter.page, activeFilter.pageSize),
     [filteredActiveLots, activeFilter.page, activeFilter.pageSize]
@@ -185,6 +248,7 @@ export default function App() {
   );
 
   const isActiveFiltered =
+    activeFilter.selectedSource !== 'ALL' ||
     activeFilter.selectedScript !== 'ALL' ||
     activeFilter.classification !== 'ALL' ||
     activeFilter.searchQuery.trim() !== '';
@@ -212,21 +276,23 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Header
-        hasWorkbook={workbook !== null}
+        hasSources={sources.length > 0}
         holdingPeriodMonths={settings.holdingPeriodMonths}
-        onFileSelected={handleFileSelected}
+        onFilesSelected={handleFilesSelected}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <main className="flex-1 w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {!workbook ? (
+        {sources.length === 0 ? (
           <UploadDropzone
-            onFileSelected={handleFileSelected}
+            preferredBroker={preferredBroker}
+            onPreferredBrokerChange={setPreferredBroker}
+            onFilesSelected={handleFilesSelected}
             errorMessage={uploadError}
             isProcessing={isProcessing}
           />
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {uploadError && (
               <div
                 role="alert"
@@ -246,7 +312,14 @@ export default function App() {
               </div>
             )}
 
-            <ValidationBanner warnings={workbook.warnings} />
+            <SourcesBar
+              sources={sources}
+              onRemoveSource={handleRemoveSource}
+              onClearAll={handleClearAllSources}
+              onAddFiles={handleFilesSelected}
+            />
+
+            <ValidationBanner warnings={combinedWarnings} />
 
             {/* Four Summary Cards synced to Active Holdings filters */}
             <SummaryCards
@@ -289,11 +362,15 @@ export default function App() {
               {activeTab === 'active' ? (
                 <>
                   <FilterToolbar
+                    sources={sources}
+                    selectedSource={activeFilter.selectedSource}
                     scripts={activeScripts}
                     selectedScript={activeFilter.selectedScript}
                     classification={activeFilter.classification}
                     searchQuery={activeFilter.searchQuery}
-                    filteredCount={filteredActiveLots.length}
+                    onSourceChange={(selectedSource) =>
+                      setActiveFilter((prev) => ({ ...prev, selectedSource, page: 1 }))
+                    }
                     onScriptChange={(selectedScript) =>
                       setActiveFilter((prev) => ({ ...prev, selectedScript, page: 1 }))
                     }
@@ -304,14 +381,13 @@ export default function App() {
                       setActiveFilter((prev) => ({ ...prev, searchQuery, page: 1 }))
                     }
                     onResetFilters={() => setActiveFilter(INITIAL_ACTIVE_FILTER)}
-                    onExport={(format) => exportActiveHoldings(filteredActiveLots, format)}
                   />
 
                   <ActiveHoldingsTable
                     rows={pagedActive.pagedItems}
                     totalLotsCount={computedActiveLots.length}
                     filteredCount={filteredActiveLots.length}
-                    valuationDate={workbook.valuationDate}
+                    valuationDates={valuationDates}
                     sortField={activeFilter.sortField}
                     sortDirection={activeFilter.sortDirection}
                     onSort={handleActiveSort}
@@ -335,11 +411,15 @@ export default function App() {
               ) : (
                 <>
                   <FilterToolbar
+                    sources={sources}
+                    selectedSource={closedFilter.selectedSource}
                     scripts={closedScripts}
                     selectedScript={closedFilter.selectedScript}
                     classification={closedFilter.classification}
                     searchQuery={closedFilter.searchQuery}
-                    filteredCount={filteredClosedTrades.length}
+                    onSourceChange={(selectedSource) =>
+                      setClosedFilter((prev) => ({ ...prev, selectedSource, page: 1 }))
+                    }
                     onScriptChange={(selectedScript) =>
                       setClosedFilter((prev) => ({ ...prev, selectedScript, page: 1 }))
                     }
@@ -350,13 +430,6 @@ export default function App() {
                       setClosedFilter((prev) => ({ ...prev, searchQuery, page: 1 }))
                     }
                     onResetFilters={() => setClosedFilter(INITIAL_CLOSED_FILTER)}
-                    onExport={(format) =>
-                      exportClosedTrades(
-                        filteredClosedTrades,
-                        format,
-                        formatCalendarDate(workbook.valuationDate)
-                      )
-                    }
                   />
 
                   <ClosedTradesTable
@@ -393,8 +466,8 @@ export default function App() {
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <span>Portfolio Tax Tracker · Local browser-only processing</span>
           <span>
-            LT/ST labels indicate calendar-month holding periods (&gt;{settings.holdingPeriodMonths}{' '}
-            months) and are not tax advice.
+            Long Term / Short Term labels indicate calendar-month holding periods (&gt;
+            {settings.holdingPeriodMonths} months) and are not tax advice.
           </span>
         </div>
       </footer>
@@ -404,6 +477,12 @@ export default function App() {
         settings={settings}
         onSave={handleSaveSettings}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <GenericMapperModal
+        request={mappingQueue[0] ?? null}
+        onImport={handleMappedImport}
+        onSkip={handleSkipMapping}
       />
     </div>
   );

@@ -17,11 +17,17 @@ export function getUniqueScripts(records: Array<{ script: string }>): string[] {
 
 export function filterActiveLots(
   lots: ActiveLotComputed[],
-  filter: Pick<TabFilterState<ActiveSortField>, 'selectedScript' | 'classification' | 'searchQuery'>
+  filter: Pick<
+    TabFilterState<ActiveSortField>,
+    'selectedSource' | 'selectedScript' | 'classification' | 'searchQuery'
+  >
 ): ActiveLotComputed[] {
   const query = filter.searchQuery.trim().toLowerCase();
 
   return lots.filter((lot) => {
+    if (filter.selectedSource !== 'ALL' && lot.sourceId !== filter.selectedSource) {
+      return false;
+    }
     if (filter.selectedScript !== 'ALL' && lot.script !== filter.selectedScript) {
       return false;
     }
@@ -49,6 +55,11 @@ export function sortActiveLots(
         cmp = a.script.localeCompare(b.script);
         if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
+      case 'source':
+        cmp = a.brokerLabel.localeCompare(b.brokerLabel);
+        if (cmp === 0) cmp = a.script.localeCompare(b.script);
+        if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
+        break;
       case 'buyDate':
         cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
@@ -60,6 +71,11 @@ export function sortActiveLots(
         break;
       case 'holdingDays':
         cmp = a.holdingDays - b.holdingDays;
+        break;
+      case 'classification':
+        cmp = a.classification.localeCompare(b.classification);
+        if (cmp === 0) cmp = a.script.localeCompare(b.script);
+        if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
       case 'currentValue':
         cmp = a.closingValue - b.closingValue;
@@ -78,11 +94,17 @@ export function sortActiveLots(
 
 export function filterClosedTrades(
   trades: ClosedTradeComputed[],
-  filter: Pick<TabFilterState<ClosedSortField>, 'selectedScript' | 'classification' | 'searchQuery'>
+  filter: Pick<
+    TabFilterState<ClosedSortField>,
+    'selectedSource' | 'selectedScript' | 'classification' | 'searchQuery'
+  >
 ): ClosedTradeComputed[] {
   const query = filter.searchQuery.trim().toLowerCase();
 
   return trades.filter((trade) => {
+    if (filter.selectedSource !== 'ALL' && trade.sourceId !== filter.selectedSource) {
+      return false;
+    }
     if (filter.selectedScript !== 'ALL' && trade.script !== filter.selectedScript) {
       return false;
     }
@@ -110,6 +132,11 @@ export function sortClosedTrades(
         cmp = a.script.localeCompare(b.script);
         if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
+      case 'source':
+        cmp = a.brokerLabel.localeCompare(b.brokerLabel);
+        if (cmp === 0) cmp = a.script.localeCompare(b.script);
+        if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
+        break;
       case 'buyDate':
         cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
@@ -127,6 +154,11 @@ export function sortClosedTrades(
         break;
       case 'holdingDays':
         cmp = a.holdingDays - b.holdingDays;
+        break;
+      case 'classification':
+        cmp = a.classification.localeCompare(b.classification);
+        if (cmp === 0) cmp = a.script.localeCompare(b.script);
+        if (cmp === 0) cmp = compareCalendarDates(a.buyDate, b.buyDate);
         break;
       case 'pnl':
         cmp = a.realisedPnL - b.realisedPnL;

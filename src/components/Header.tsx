@@ -1,25 +1,24 @@
 import React, { useRef } from 'react';
-import { BarChart3, SlidersHorizontal, Upload } from 'lucide-react';
+import { BarChart3, Plus, SlidersHorizontal } from 'lucide-react';
 
 interface HeaderProps {
-  hasWorkbook: boolean;
+  hasSources: boolean;
   holdingPeriodMonths: number;
-  onFileSelected: (file: File) => void;
+  onFilesSelected: (files: FileList | File[]) => void;
   onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  hasWorkbook,
+  hasSources,
   holdingPeriodMonths,
-  onFileSelected,
+  onFilesSelected,
   onOpenSettings,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onFileSelected(file);
+    if (e.target.files && e.target.files.length > 0) {
+      onFilesSelected(e.target.files);
     }
     e.target.value = '';
   };
@@ -53,23 +52,24 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="font-mono text-xs text-blue-200">({holdingPeriodMonths}m)</span>
           </button>
 
-          {hasWorkbook && (
+          {hasSources && (
             <>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx"
+                accept=".xlsx,.xls,.csv"
+                multiple
                 onChange={handleInputChange}
                 className="hidden"
-                aria-label="Upload new Groww Excel file"
+                aria-label="Add broker report files"
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
               >
-                <Upload className="w-4 h-4" aria-hidden="true" />
-                <span>Change File</span>
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span>Add Source</span>
               </button>
             </>
           )}

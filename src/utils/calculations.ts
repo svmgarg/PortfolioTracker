@@ -201,10 +201,11 @@ export function getThresholdForScript(
 
 export function computeActiveLot(
   lot: ActiveLotRaw,
-  reportValuationDate: CalendarDate,
+  fallbackValuationDate: CalendarDate,
   settings: TaxSettings
 ): ActiveLotComputed {
-  const effectiveValuationDate = lot.closingDate ?? reportValuationDate;
+  const effectiveValuationDate =
+    lot.closingDate ?? lot.sourceValuationDate ?? fallbackValuationDate;
   const holdingDays = diffCalendarDays(lot.buyDate, effectiveValuationDate);
   const { category, months } = getThresholdForScript(lot.script, settings);
   const classification = classifyHoldingPeriod(lot.buyDate, effectiveValuationDate, months);

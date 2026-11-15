@@ -60,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Holding-Period Classification Settings
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Configure calendar-month thresholds for LT / ST classification
+              Configure calendar-month thresholds for Long Term / Short Term classification
             </p>
           </div>
           <button
@@ -117,7 +117,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="w-full h-10 px-3 text-sm font-mono bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p className="mt-1 text-xs text-slate-500">
-                Held &gt; {months || 12} calendar months = LT
+                Held &gt; {months || 12} calendar months = Long Term
               </p>
             </div>
 
@@ -146,10 +146,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="rounded-lg bg-blue-50/70 border border-blue-200 p-3.5 flex items-start gap-2.5">
             <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
             <p className="text-xs text-blue-900 leading-relaxed">
-              LT and ST labels represent holding-period classifications using true calendar-month
-              comparisons (not a fixed 365-day rule). Different Indian securities (e.g., debt ETFs,
-              gold ETFs, or unlisted units) may follow distinct tax rules; consult your tax advisor
-              before filing.
+              Long Term and Short Term labels represent holding-period classifications using true
+              calendar-month comparisons (not a fixed 365-day rule). Different Indian securities
+              (e.g., debt ETFs, gold ETFs, or unlisted units) may follow distinct tax rules; consult
+              your tax advisor before filing.
             </p>
           </div>
 
