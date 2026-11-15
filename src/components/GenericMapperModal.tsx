@@ -12,6 +12,7 @@ import { parseDateValue } from '../utils/calculations';
 
 export interface PendingMappingRequest {
   fileName: string;
+  contentHash: string;
   workbook: XLSX.WorkBook;
   suggestedBrokerLabel: string;
   reason: string;
@@ -165,7 +166,10 @@ export const GenericMapperModal: React.FC<GenericMapperModalProps> = ({
         },
         sourceId
       );
-      onImport(loaded);
+      onImport({
+        ...loaded,
+        contentHash: request.contentHash,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse mapped columns.');
     }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Info } from 'lucide-react';
 import { ActiveHoldingsTable } from './components/ActiveHoldingsTable';
 import { ClosedTradesTable } from './components/ClosedTradesTable';
 import { FilterToolbar } from './components/FilterToolbar';
@@ -104,6 +104,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
 
   const [activeFilter, setActiveFilter] = useState<TabFilterState<ActiveSortField>>(
     INITIAL_ACTIVE_FILTER
@@ -118,19 +119,34 @@ export default function App() {
 
     setIsProcessing(true);
     setUploadError(null);
+    setDuplicateNotice(null);
+
+    const seenHashes = new Set<string>();
+    for (const src of sources) {
+      if (src.contentHash) seenHashes.add(src.contentHash);
+    }
+    for (const req of mappingQueue) {
+      if (req.contentHash) seenHashes.add(req.contentHash);
+    }
 
     const parsedSources: LoadedSource[] = [];
     const pendingMappings: PendingMappingRequest[] = [];
+    const duplicateNames: string[] = [];
     const errors: string[] = [];
 
     for (const file of files) {
       try {
-        const outcome = await parseFileWithRegistry(file, preferredBroker);
-        if (outcome.status === 'parsed') {
+        const outcome = await parseFileWithRegistry(file, preferredBroker, seenHashes);
+        if (outcome.status === 'duplicate') {
+          duplicateNames.push(outcome.fileName);
+        } else if (outcome.status === 'parsed') {
+          if (outcome.source.contentHash) seenHashes.add(outcome.source.contentHash);
           parsedSources.push(outcome.source);
         } else {
+          if (outcome.contentHash) seenHashes.add(outcome.contentHash);
           pendingMappings.push({
             fileName: outcome.fileName,
+            contentHash: outcome.contentHash,
             workbook: outcome.workbook,
             suggestedBrokerLabel: outcome.suggestedBrokerLabel,
             reason: outcome.reason,
@@ -153,6 +169,14 @@ export default function App() {
       setMappingQueue((prev) => [...prev, ...pendingMappings]);
     }
 
+    if (duplicateNames.length > 0) {
+      setDuplicateNotice(
+        duplicateNames.length === 1
+          ? `Skipped duplicate file: "${duplicateNames[0]}" is already loaded.`
+          : `Skipped ${duplicateNames.length} duplicate files that are already loaded.`
+      );
+    }
+
     if (errors.length > 0) {
       setUploadError(errors.join(' '));
     }
@@ -161,7 +185,15 @@ export default function App() {
   };
 
   const handleMappedImport = (mappedSource: LoadedSource) => {
-    setSources((prev) => [...prev, mappedSource]);
+    setSources((prev) => {
+      if (
+        mappedSource.contentHash &&
+        prev.some((s) => s.contentHash === mappedSource.contentHash)
+      ) {
+        return prev;
+      }
+      return [...prev, mappedSource];
+    });
     setMappingQueue((prev) => prev.slice(1));
   };
 
@@ -188,6 +220,7 @@ export default function App() {
     setActiveFilter(INITIAL_ACTIVE_FILTER);
     setClosedFilter(INITIAL_CLOSED_FILTER);
     setUploadError(null);
+    setDuplicateNotice(null);
   };
 
   const handleSaveSettings = (updated: TaxSettings) => {
@@ -306,6 +339,25 @@ export default function App() {
                   type="button"
                   onClick={() => setUploadError(null)}
                   className="text-xs font-semibold text-red-700 hover:text-red-900 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {duplicateNotice && (
+              <div
+                role="status"
+                className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 flex items-start justify-between gap-3"
+              >
+                <div className="flex items-start gap-2.5 text-sm text-blue-900">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>{duplicateNotice}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateNotice(null)}
+                  className="text-xs font-semibold text-blue-700 hover:text-blue-900 cursor-pointer"
                 >
                   Dismiss
                 </button>

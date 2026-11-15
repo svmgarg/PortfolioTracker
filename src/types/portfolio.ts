@@ -78,6 +78,7 @@ export interface ScripValidationSummary {
 
 export interface LoadedSource {
   sourceId: string;
+  contentHash?: string;
   brokerType: BrokerSourceType;
   brokerLabel: string;
   valuationDate: CalendarDate;
