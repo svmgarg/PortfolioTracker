@@ -55,43 +55,13 @@ The Vite build uses relative asset paths (`base: './'`) and requires zero backen
 
 ### Option A: Automated Deployment via GitHub Actions (Recommended)
 
-1. In your GitHub repository, create `.github/workflows/deploy.yml`:
+The included `.github/workflows/deploy.yml` installs dependencies from `bun.lock`
+using Bun 1.4.4 and Node.js 24, runs the TypeScript check, builds the static
+bundle, and deploys only after those checks pass.
 
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-jobs:
-  build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - id: deployment
-        uses: actions/deploy-pages@v4
-```
-
-2. Go to **Repository Settings → Pages → Source** and select **GitHub Actions**.
-3. Push to `main`—your site will publish automatically at `https://<your-username>.github.io/portfolio-tax-tracker/`.
+1. Set **Repository Settings → Pages → Source** to **GitHub Actions**.
+2. Push to `main`, or manually run **Deploy to GitHub Pages** from the **Actions** tab.
+3. Open **https://svmgarg.github.io/PortfolioTracker/**.
 
 ### Option B: Manual Static Publish
 
